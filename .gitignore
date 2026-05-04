@@ -1,0 +1,19 @@
+# environments
+venv/
+*/venv/
+
+# python
+__pycache__/
+*.pyc
+
+# models
+*.pt
+
+# archives
+*.zip
+
+# datasets (ignore heavy files only)
+dataset/**/*.csv
+dataset/**/*.json
+dataset/**/*.jpg
+dataset/**/*.png
