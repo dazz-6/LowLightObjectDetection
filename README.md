@@ -30,13 +30,13 @@ YOLOv8-based object detection system optimized for low-light and partially occlu
 
 | Detection Result 1 | Detection Result 2 |
 |-------------------|-------------------|
-| ![](Output/demo_result1.png) | ![](Output/demo_result2.png) |
+| ![](Output/result1.png) | ![](Output/result2.png) |
 
 ---
 
 ## Real-Time Detection Demo
+| ![](Output/demo_result1.png) | ![](Output/demo_result2.png) |
 
-![](Output/demo.gif)
 
 ---
 
