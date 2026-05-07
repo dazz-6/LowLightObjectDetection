@@ -1,52 +1,92 @@
-# app.py
-
 import streamlit as st
 from ultralytics import YOLO
-from PIL import Image
-import tempfile
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+import cv2
+import av
+import time
 
-# Page config
-st.set_page_config(page_title="YOLOv8 Object Detection", layout="centered")
+# ==============================
+# LOAD MODEL
+# ==============================
+model = YOLO("best.pt")
 
-# Title
-st.title("🚀 YOLOv8 Object Detection App")
-st.write("Upload an image and detect objects using your trained model")
+st.title("Occlusion-Robust Real-Time Object Detection")
 
-# Load model (cached so it doesn't reload every time)
-@st.cache_resource
-def load_model():
-    model = YOLO("best.pt")  # Make sure best.pt is in same folder
-    return model
+# ==============================
+# OPTIONAL CLAHE ENHANCEMENT
+# ==============================
+def apply_clahe(frame):
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
 
-model = load_model()
+    clahe = cv2.createCLAHE(
+        clipLimit=2.0,
+        tileGridSize=(8, 8)
+    )
 
-# File uploader
-uploaded_file = st.file_uploader("📤 Upload an image", type=["jpg", "jpeg", "png"])
+    cl = clahe.apply(l)
 
-if uploaded_file is not None:
-    # Display uploaded image
-    image = Image.open(uploaded_file)
-    st.image(image, caption="🖼️ Uploaded Image", use_column_width=True)
+    merged = cv2.merge((cl, a, b))
 
-    # Save image temporarily
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
-        image.save(temp_file.name)
-        temp_path = temp_file.name
+    return cv2.cvtColor(
+        merged,
+        cv2.COLOR_LAB2BGR
+    )
 
-    # Detection button
-    if st.button("🔍 Detect Objects"):
-        with st.spinner("Running detection..."):
-            results = model(temp_path)
+# ==============================
+# VIDEO TRANSFORMER
+# ==============================
+class VideoTransformer(VideoTransformerBase):
 
-            # Plot results
-            result_image = results[0].plot()
+    prev_time = 0
 
-            # Show output
-            st.image(result_image, caption="✅ Detected Output", use_column_width=True)
+    def transform(self, frame):
 
-            # Optional: show detected classes
-            boxes = results[0].boxes
-            if boxes is not None:
-                classes = boxes.cls.tolist()
-                st.write("### 📊 Detected Class IDs:")
-                st.write(classes)
+        img = frame.to_ndarray(format="bgr24")
+
+        # Resize for speed
+        img = cv2.resize(img, (640, 480))
+
+        # OPTIONAL CLAHE
+        # img = apply_clahe(img)
+
+        # YOLO DETECTION
+        results = model(img, conf=0.4)
+
+        annotated = results[0].plot()
+
+        # FPS Calculation
+        curr_time = time.time()
+
+        fps = (
+            1 / (curr_time - self.prev_time)
+            if self.prev_time != 0
+            else 0
+        )
+
+        self.prev_time = curr_time
+
+        cv2.putText(
+            annotated,
+            f"FPS: {int(fps)}",
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 255, 0),
+            2
+        )
+
+        return annotated
+
+# ==============================
+# LIVE WEBRTC STREAM
+# ==============================
+webrtc_streamer(
+    key="yolov8-live",
+    video_transformer_factory=VideoTransformer,
+    media_stream_constraints={
+        "video": True,
+        "audio": False
+    },
+    async_processing=True,
+)
